@@ -18,7 +18,7 @@ export const handler = middy(
         'Access-Control-Allow-Origin': '*'
       },
       body: JSON.stringify({
-        todos
+        items: todos,
       })
     }
   });
