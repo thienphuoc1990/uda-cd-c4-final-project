@@ -1,7 +1,8 @@
-import * as AWS from 'aws-sdk'
-import * as AWSXRay from 'aws-xray-sdk'
+import * as AWS from 'aws-sdk';
+import * as AWSXRay from 'aws-xray-sdk';
 
-const XAWS = AWSXRay.captureAWS(AWS)
+// @ts-ignore
+const _XAWS = AWSXRay.captureAWS(AWS);
 const s3 = new AWS.S3({
     signatureVersion: 'v4'
 });
