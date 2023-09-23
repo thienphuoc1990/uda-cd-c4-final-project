@@ -12,7 +12,7 @@ const logger = createLogger('auth')
 // TODO: Provide a URL that can be used to download a certificate that can be used
 // to verify JWT token signature.
 // To get this URL you need to go to an Auth0 page -> Show Advanced Settings -> Endpoints -> JSON Web Key Set
-const jwksUrl = '...'
+const jwksUrl = 'https://dev-5enywhhb.us.auth0.com/.well-known/jwks.json'
 
 export const handler = async (
   event: CustomAuthorizerEvent
@@ -54,14 +54,46 @@ export const handler = async (
   }
 }
 
+async function getSecret(kid) {
+  const res = await Axios.get(jwksUrl);
+  const jwks = res.data.keys;
+
+  if (!jwks || !jwks.length) {
+    throw new Error('The JWKS endpoint did not contain any keys');
+  }
+
+  const signingKeys = jwks
+    .filter(key => key.use === 'sig'
+                && key.kty === 'RSA'
+                && key.kid
+                && ((key.x5c && key.x5c.length) || (key.n && key.e))
+    ).map(key => {
+      return { kid: key.kid, nbf: key.nbf, publicKey: certToPEM(key.x5c[0]) };
+    });
+
+  // If at least one signing key doesn't exist we have a problem... Kaboom.
+  if (!signingKeys.length) {
+    throw new Error('The JWKS endpoint did not contain any signature verification keys');
+  }
+
+  const signingKey = signingKeys.find(key => key.kid === kid);
+
+  if (!signingKey) {
+    throw new Error(`Unable to find a signing key that matches '${kid}'`);
+  }
+
+  return signingKey.publicKey;
+}
+
 async function verifyToken(authHeader: string): Promise<JwtPayload> {
   const token = getToken(authHeader)
-  const jwt: Jwt = decode(token, { complete: true }) as Jwt
+  const jwt: Jwt = decode(token, { complete: true }) as Jwt;
+  const secret = await getSecret(jwt.header.kid);
 
   // TODO: Implement token verification
   // You should implement it similarly to how it was implemented for the exercise for the lesson 5
   // You can read more about how to do this here: https://auth0.com/blog/navigating-rs256-and-jwks/
-  return undefined
+  return verify(token, secret) as JwtPayload;
 }
 
 function getToken(authHeader: string): string {
@@ -74,4 +106,10 @@ function getToken(authHeader: string): string {
   const token = split[1]
 
   return token
+}
+
+function certToPEM(cert) {
+  cert = cert.match(/.{1,64}/g).join('\n');
+  cert = `-----BEGIN CERTIFICATE-----\n${cert}\n-----END CERTIFICATE-----\n`;
+  return cert;
 }
