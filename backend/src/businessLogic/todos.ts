@@ -1,36 +1,17 @@
-// import { TodosAccess } from './todosAcess';
-// import { AttachmentUtils } from './attachmentUtils';
+import * as TodosAccess from './todosAccess';
+import * as AttachmentUtils from './attachmentUtils';
 import { TodoItem } from '../models/TodoItem';
 import { CreateTodoRequest } from '../requests/CreateTodoRequest';
 import { UpdateTodoRequest } from '../requests/UpdateTodoRequest';
 // import { createLogger } from '../utils/logger';
 import * as uuid from 'uuid';
 // import * as createError from 'http-errors';
-import * as AWS from 'aws-sdk';
 import dateFormat from 'dateformat';
 
-const docClient = new AWS.DynamoDB.DocumentClient();
-const s3 = new AWS.S3({
-  signatureVersion: 'v4'
-});
-
-const todosTable = process.env.TODOS_TABLE;
-const indexName = process.env.TODOS_CREATED_AT_INDEX;
 const bucketName = process.env.ATTACHMENT_S3_BUCKET;
-const urlExpiration = process.env.SIGNED_URL_EXPIRATION
 
 export async function getTodosForUser(userId: string): Promise<TodoItem[]> {
-  const result = await docClient.query({
-    TableName: todosTable,
-    IndexName: indexName,
-    KeyConditionExpression: 'userId = :userId',
-    ExpressionAttributeValues: {
-      ':userId': userId,
-    },
-  }).promise();
-
-  const items = result.Items as TodoItem[];
-  return items;
+  return TodosAccess.getTodosForUser(userId);
 }
 
 export async function createTodo(userId: string, newTodo: CreateTodoRequest): Promise<TodoItem> {
@@ -44,49 +25,19 @@ export async function createTodo(userId: string, newTodo: CreateTodoRequest): Pr
     ...newTodo,
   }
 
-  await docClient.put({
-    TableName: todosTable,
-    Item: newItem,
-  }).promise();
+  await TodosAccess.createTodo(newItem);
 
   return newItem;
 }
 
-export async function updateTodo(userId: string, todoId: string, updateTodoData: UpdateTodoRequest): Promise<void> {
-  await docClient.update({
-    TableName: todosTable,
-    Key: {
-      userId: userId,
-      todoId: todoId,
-    },
-    UpdateExpression: "set #name = :name, #dueDate = :dueDate, #done = :done",
-    ExpressionAttributeNames: {
-      "#name": "name",
-      "#dueDate": "dueDate",
-      "#done": "done",
-    },
-    ExpressionAttributeValues: {
-      ":name": updateTodoData.name,
-      ":dueDate": updateTodoData.dueDate,
-      ":done": updateTodoData.done,
-    }
-  }).promise();
+export async function updateTodo(userId: string, todoId: string, UpdateTodoRequest: UpdateTodoRequest): Promise<void> {
+  await TodosAccess.updateTodo(userId, todoId, UpdateTodoRequest);
 }
 
 export async function deleteTodo(userId: string, todoId: string): Promise<void> {
-  await docClient.delete({
-    TableName: todosTable,
-    Key: {
-      userId: userId,
-      todoId: todoId,
-    },
-  }).promise();
+  await TodosAccess.deleteTodo(userId, todoId);
 }
 
 export async function createAttachmentPresignedUrl(userId: string, todoId: string): Promise<string> {
-  return s3.getSignedUrl('putObject', {
-    Bucket: bucketName,
-    Key: `${userId}-${todoId}`,
-    Expires: parseInt(urlExpiration),
-  })
+  return await AttachmentUtils.createAttachmentPresignedUrl(userId, todoId);
 }
