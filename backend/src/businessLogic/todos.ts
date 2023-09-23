@@ -40,6 +40,7 @@ export async function createTodo(userId: string, newTodo: CreateTodoRequest): Pr
     userId: userId,
     done: false,
     createdAt: dateFormat(Date.now(), 'yyyy-mm-dd') as string,
+    attachmentUrl: `https://${bucketName}.s3.amazonaws.com/${userId}-${itemId}`,
     ...newTodo,
   }
 
